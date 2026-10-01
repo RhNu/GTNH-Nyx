@@ -83,6 +83,11 @@ nyx.machine.proxy.name=PROXY (WIP)
 nyx.machine.proxy.type=Functional Proxy
 nyx.machine.proxy.gui.t.0=Next Mode
 nyx.machine.proxy.gui.t.1=Update Recipe
+nyx.machine.proxy.rock.top=Top: %s
+nyx.machine.proxy.rock.bottom=Bottom: %s
+nyx.machine.proxy.rock.sides=Sides: %s
+nyx.machine.proxy.rock.anywhere=Anywhere: %s
+nyx.machine.proxy.rock.none=No environmental requirement
 
 nyx.machine.converter.name=CONVERTER
 nyx.machine.converter.type=OreDict Converter

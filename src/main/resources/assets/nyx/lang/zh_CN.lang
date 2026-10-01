@@ -83,6 +83,11 @@ nyx.machine.proxy.name=代理执行 (WIP)
 nyx.machine.proxy.type=处理阵列
 nyx.machine.proxy.gui.t.0=切换模式
 nyx.machine.proxy.gui.t.1=更新配方
+nyx.machine.proxy.rock.top=上方：%s
+nyx.machine.proxy.rock.bottom=下方：%s
+nyx.machine.proxy.rock.sides=侧面：%s
+nyx.machine.proxy.rock.anywhere=任意方位：%s
+nyx.machine.proxy.rock.none=无环境需求
 
 nyx.machine.converter.name=矿典同步
 nyx.machine.converter.type=矿辞转换器

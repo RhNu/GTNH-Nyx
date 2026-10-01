@@ -41,4 +41,10 @@ dependencies {
     // RFG matches exact coordinates; the convention plugin only registers its older IC2 fallback.
     rfg.deobf("curse.maven:ic2-242638:$ic2CurseFileId")
     testImplementation(kotlin("test"))
+    // Match GT5U's unit-test runtime for OverclockCalculator / GTUtility.
+    testRuntimeOnly("org.joml:joml:1.10.8")
+    testRuntimeOnly("it.unimi.dsi:fastutil:8.5.18")
+    testRuntimeOnly("xyz.wagyourtail.jvmdowngrader:jvmdowngrader-java-api:1.3.5:downgraded-8") {
+        isTransitive = false
+    }
 }

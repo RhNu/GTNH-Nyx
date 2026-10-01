@@ -43,8 +43,36 @@ Some features may need to be enabled in `config\Nyx\*.cfg`.
 
   **Config: `MTE_PROXY`**
 
-> Note: This is intended for "simple" machines that work without special conditions or custom processing.
-> The processing behavior is roughly what you see in NEI.
+> Ordinary machines keep their live RecipeMap backend. Dedicated lazy strategies also support current/legacy
+> Tree Growth Simulators and Algae Ponds, plus basic Mass Fabricators and Rock Breakers. Mock recipes are private
+> to the proxy: upstream display/fake recipes are never made executable globally.
+>
+> Tree farms use saplings (including Forestry genetics) and mode-appropriate tools in input buses as reusable
+> selectors. Tools lose neither durability nor charge, including discharged electric tools; this is an intentional
+> proxy perk. Yield and power follow the input-voltage tier; machine count still controls parallelism.
+>
+> Both algae generations use the input-voltage tier and the newer machine's 90% tier-voltage EU/t without OC.
+> Put a water bucket in an input bus to represent pond water; it is not consumed or emptied. Compost is still
+> consumed per parallel operation and upgrades the output tier once. Source chances and durations are preserved.
+>
+> Basic Mass Fabricators prefer UUA when enough is available. Any integrated circuit prevents the unamplified
+> branch; an amplified operation does not require circuit 1. Current configuration and the controller's special
+> 2x-power overclock rules apply, independently per parallel operation.
+>
+> Basic Rock Breakers use reusable water/lava buckets and required solid blocks instead of world neighbors.
+> The existing mode button or screwdriver selects the source positional-environment variant, distinguishing
+> stone from cobblestone without changing original circuit requirements. Redstone/glowstone are still consumed;
+> blue ice/magma and environmental items remain reusable. Additional runtime variants are discovered live.
+>
+> HTGR, Eye of Harmony, Solar Tower, space project managers, LHC, current/legacy large boilers, Decay Warehouse,
+> Quantum Computer, Radio Hatch, Forge of Gods upgrade costs, and scanner/research machines are denied.
+> Exo Foundry retains solidification while its module-cost map is excluded. BioLab's real recipes and dynamic
+> backends such as the industrial chisel remain available. Exotic Module's custom process is not added here.
+>
+> Modes are instance-owned and safely restored; cached species include copied NBT and current registration
+> data. Late recipe registrations, tier/compost/configuration changes and input changes are rechecked. Recipe
+> locking is disabled for proxies so saved locks cannot bypass a strategy. An already-paid in-flight cycle from
+> an older save may finish once; newly denied controllers cannot start another cycle.
 
 ![proxy_1](img/proxy_1.png)
 
