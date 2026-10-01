@@ -1,6 +1,6 @@
 # Nyx: 没有人类了
 
-![Version](https://img.shields.io/badge/GTNH_Version-2.9.0_Beta_2-blue)
+![Version](https://img.shields.io/badge/GTNH_Version-2.9.0_RC_1-blue)
 
 [English](README.md) | 中文
 
@@ -8,7 +8,7 @@
 
 这玩意儿是**作弊Mod**。技术力和平衡是不存在的，自己玩的爽了就行。
 
-非正式发布的 [Pre-Release 构建](https://github.com/RhNu/GTNH-Nyx/releases/tag/edge-build) 通常用于测试、开发半途或 GTNH 未发布正式版时针对 Beta 版本的临时打包。
+非正式发布的 [Pre-Release 构建](https://github.com/RhNu/GTNH-Nyx/releases/tag/edge-build) 通常用于测试、开发半途或 GTNH 未发布正式版时针对 Beta 和 RC 版本的临时打包。
 
 > [!NOTE]
 > 如上所述，这个Mod并不是为了平衡而生的。

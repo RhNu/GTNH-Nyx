@@ -1,6 +1,6 @@
 # Nyx: No Humans Left
 
-![Version](https://img.shields.io/badge/GTNH_Version-2.9.0_Beta_2-blue)
+![Version](https://img.shields.io/badge/GTNH_Version-2.9.0_RC_1-blue)
 
 English | [中文](README.zh.md)
 
@@ -10,7 +10,7 @@ After that, I just wanted to mess around, and this absurd mod happened.
 This is a **cheat mod**. Balance and technical purity are not the goal here; having fun is.
 
 Unofficial [Pre-Release builds](https://github.com/RhNu/GTNH-Nyx/releases/tag/edge-build) are usually used for
-testing, in-progress development, or temporary packaging for GTNH Beta versions before an official GTNH release.
+testing, in-progress development, or temporary packaging for GTNH Beta and RC versions before an official GTNH release.
 
 > [!NOTE]
 > As stated above, this mod is not built for balance.
