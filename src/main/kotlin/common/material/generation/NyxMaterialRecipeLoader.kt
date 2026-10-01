@@ -137,7 +137,7 @@ class NyxMaterialRecipeLoader(
                         mat.getCell(state),
                         Materials.Empty.getCells(1),
                     ).let {
-                        GTUtility.addFluidContainerData(it)
+                        GTUtility.insertInFluidToContainersMap(it)
                         FluidContainerRegistry.registerFluidContainer(it)
                     }
             }
@@ -149,7 +149,7 @@ class NyxMaterialRecipeLoader(
                         GTModHandler.getModItem(Mods.Forestry.ID, "waxCapsule", 1),
                         Materials.Empty.getCells(1),
                     ).let {
-                        GTUtility.addFluidContainerData(it)
+                        GTUtility.insertInFluidToContainersMap(it)
                         FluidContainerRegistry.registerFluidContainer(it)
                     }
             }
@@ -225,7 +225,7 @@ class NyxMaterialRecipeLoader(
             TextureFactory
                 .of(
                     Textures.BlockIcons.MACHINE_CASINGS[2][0],
-                    TextureFactory.of(Textures.BlockIcons.OVERLAY_LENS, mat.color, false),
+                    TextureFactory.of(Textures.BlockIcons.OVERLAY_LENS, mat.color),
                 ) // .let { GregTechAPI.registerCover(mat.get(lens), it, CoverLens(dye.mIndex, it)) }
 
             OreDictionary.getOres("craftingLens${dye.name.replace("\\s".toRegex(), "")}}").forEach {
@@ -297,14 +297,13 @@ class NyxMaterialRecipeLoader(
                         TextureFactory.of(
                             set.mTextures[
                                 PrefixTextureLinker.blockTexMap
-                                    .getOrDefault(set, block.mTextureIndex)
+                                    .getOrDefault(set, block.textureIndex.toShort())
                                     .toInt(),
                             ],
                             mat.color,
-                            false,
                         )
                     } else {
-                        TextureFactory.of(set.mTextures[block.mTextureIndex.toInt()], mat.color, false)
+                        TextureFactory.of(set.mTextures[block.textureIndex], mat.color)
                     }
                 ) // .let { GregTechAPI.registerCover(mat.getPlate(), it, null) }
             }

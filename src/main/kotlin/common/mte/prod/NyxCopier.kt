@@ -1,5 +1,6 @@
 package rhynia.nyx.common.mte.prod
 
+import com.gtnewhorizon.gtnhlib.util.numberformatting.NumberFormatUtil
 import com.gtnewhorizons.modularui.api.math.Alignment
 import com.gtnewhorizons.modularui.api.math.Color
 import com.gtnewhorizons.modularui.api.screen.ModularWindow
@@ -12,11 +13,11 @@ import com.gtnewhorizons.modularui.common.widget.textfield.TextFieldWidget
 import gregtech.api.GregTechAPI
 import gregtech.api.enums.HatchElement.OutputBus
 import gregtech.api.enums.HatchElement.OutputHatch
-import gregtech.api.enums.Textures
 import gregtech.api.enums.Textures.BlockIcons.OVERLAY_DTPF_OFF
 import gregtech.api.enums.Textures.BlockIcons.OVERLAY_DTPF_ON
 import gregtech.api.gui.modularui.GTUITextures
 import gregtech.api.interfaces.IHatchElement
+import gregtech.api.interfaces.IIconContainer
 import gregtech.api.interfaces.metatileentity.IMetaTileEntity
 import gregtech.api.interfaces.tileentity.IGregTechTileEntity
 import gregtech.api.logic.ProcessingLogic
@@ -69,25 +70,13 @@ class NyxCopier : NyxMTECubeBase<NyxCopier> {
                 mEfficiencyIncrease = 0
                 mOutputItems = null
                 mOutputFluids = null
-                pCopyItem = pCopyItemBase
-                pCopyFluid = pCopyFluidBase
                 pDisplayName = "×"
             }
         }
 
     private var pDisplayName: String = "×"
     private val pCopyItemBase: ItemStack by lazy { NyxItemList.TestItem01.get(1) }
-    private var pCopyItem: ItemStack = pCopyItemBase.copy()
-        set(value) {
-            pDisplayName = value.displayName
-            field = value
-        }
     private val pCopyFluidBase: FluidStack by lazy { NyxMaterials.Null.getFluid() }
-    private var pCopyFluid: FluidStack = pCopyFluidBase.copy()
-        set(value) {
-            pDisplayName = value.localizedName
-            field = value
-        }
     private var pAmount: Long = 0
         set(value) {
             field =
@@ -125,13 +114,15 @@ class NyxCopier : NyxMTECubeBase<NyxCopier> {
         pRunning = false
         val stackToCopy = controllerSlot ?: return CheckRecipeResultRegistry.NO_RECIPE
         if (pItemMode) {
-            pCopyItem = stackToCopy
             if (stackToCopy.isItemEqual(pCopyItemBase)) return CheckRecipeResultRegistry.NO_RECIPE
-            if (!outputItem(pCopyItem, pAmount)) return CheckRecipeResultRegistry.NO_RECIPE
+            if (!outputItem(stackToCopy, pAmount)) return CheckRecipeResultRegistry.NO_RECIPE
+            // Resolving the display name is not cheap, so only do it on the running path.
+            pDisplayName = stackToCopy.displayName
         } else {
-            pCopyFluid = GTUtility.convertCellToFluid(stackToCopy) ?: return CheckRecipeResultRegistry.NO_RECIPE
-            if (pCopyFluid.isFluidEqual(pCopyFluidBase)) return CheckRecipeResultRegistry.NO_RECIPE
-            if (!outputFluid(pCopyFluid, pAmount)) return CheckRecipeResultRegistry.NO_RECIPE
+            val fluidToCopy = GTUtility.convertCellToFluid(stackToCopy) ?: return CheckRecipeResultRegistry.NO_RECIPE
+            if (fluidToCopy.isFluidEqual(pCopyFluidBase)) return CheckRecipeResultRegistry.NO_RECIPE
+            if (!outputFluid(fluidToCopy, pAmount)) return CheckRecipeResultRegistry.NO_RECIPE
+            pDisplayName = fluidToCopy.localizedName
         }
         pRunning = true
         return CheckRecipeResultRegistry.SUCCESSFUL
@@ -151,10 +142,10 @@ class NyxCopier : NyxMTECubeBase<NyxCopier> {
     override val sCasingHatch: Array<IHatchElement<in NyxCopier>>
         get() = arrayOf(OutputBus, OutputHatch)
 
-    override val sControllerIcon: Pair<Textures.BlockIcons, Textures.BlockIcons>
+    override val sControllerIcon: Pair<IIconContainer, IIconContainer>
         get() = OVERLAY_DTPF_OFF to OVERLAY_DTPF_OFF
 
-    override val sControllerIconActive: Pair<Textures.BlockIcons, Textures.BlockIcons>
+    override val sControllerIconActive: Pair<IIconContainer, IIconContainer>
         get() = OVERLAY_DTPF_ON to OVERLAY_DTPF_ON
 
     override fun createTooltip(): MultiblockTooltipBuilder =
@@ -223,7 +214,7 @@ class NyxCopier : NyxMTECubeBase<NyxCopier> {
                     .dynamicString {
                         StatCollector.translateToLocalFormatted(
                             "nyx.machine.copier.waila.1",
-                            GTUtility.formatNumbers(pAmount),
+                            NumberFormatUtil.formatNumber(pAmount),
                         )
                     }.setSynced(true)
                     .setTextAlignment(Alignment.CenterLeft)
@@ -278,7 +269,7 @@ class NyxCopier : NyxMTECubeBase<NyxCopier> {
         super.getWailaNBTData(player, tile, tag, world, x, y, z)
         if (baseMetaTileEntity?.isActive == true) {
             tag.setString("pDisplayName", pDisplayName)
-            tag.setString("pAmount", GTUtility.formatNumbers(pAmount))
+            tag.setString("pAmount", NumberFormatUtil.formatNumber(pAmount))
             tag.setInteger("pItemMode", if (pItemMode) 1 else -1)
         }
     }

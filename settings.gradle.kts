@@ -23,5 +23,5 @@ pluginManagement {
 }
 
 plugins {
-    id("com.gtnewhorizons.gtnhsettingsconvention") version "1.0.49"
+    id("com.gtnewhorizons.gtnhsettingsconvention") version "2.0.26"
 }

@@ -2,42 +2,33 @@ package rhynia.nyx.init
 
 import gregtech.api.GregTechAPI
 import gregtech.api.interfaces.metatileentity.IMetaTileEntity
-import gregtech.api.util.GTUtility
-import net.minecraft.util.StatCollector
 import rhynia.nyx.DevEnv
 import rhynia.nyx.MOD_NAME
 import rhynia.nyx.api.interfaces.Loader
 import rhynia.nyx.common.ItemList
 import rhynia.nyx.common.NyxItemList
-import rhynia.nyx.common.NyxWirelessDynamoList
-import rhynia.nyx.common.NyxWirelessEnergyList
-import rhynia.nyx.common.mte.base.NyxHatchWirelessDynamo
-import rhynia.nyx.common.mte.base.NyxHatchWirelessEnergy
 import rhynia.nyx.common.mte.prod.NyxConverter
 import rhynia.nyx.common.mte.prod.NyxCopier
 import rhynia.nyx.common.mte.prod.NyxProxy
 import rhynia.nyx.common.mte.sing.NyxInjector
 import rhynia.nyx.config.ConfigDebug
 import rhynia.nyx.config.ConfigMachine
-import rhynia.nyx.config.ConfigRecipe
 import java.io.File
 
 object MachineLoader : Loader {
-    private val offset by lazy { ConfigMachine.MTE_ID_OFFSET }
-    private val offsetUpper get() = offset + 100
+    /** Size of the ID block reserved after [ConfigMachine.MTE_ID_OFFSET]. */
+    private const val RESERVED_ID_COUNT = 50
 
-    private val offsetWirelessEnergy get() = offsetUpper - NyxWirelessEnergyList.entries.size
-    private val offsetWirelessDynamo get() = offsetWirelessEnergy - NyxWirelessDynamoList.entries.size
+    private val offset by lazy { ConfigMachine.MTE_ID_OFFSET }
 
     override fun load() {
         if (ConfigDebug.DEBUG_PRINT_MTE_IDS || DevEnv) printMteIds()
         checkOccupation()
         initialiseMachineClass()
-        initExtraWirelessExtended()
     }
 
     private fun checkOccupation() {
-        val range = (offset + 1)..(offset + 100)
+        val range = (offset + 1)..(offset + RESERVED_ID_COUNT)
         val checked = mutableListOf<Pair<Int, String>>()
         for (i in range) {
             if (GregTechAPI.METATILEENTITIES[i] != null) {
@@ -61,61 +52,6 @@ object MachineLoader : Loader {
         NyxItemList.MachineInjector.register(NyxInjector(offset + 31, "nyx.machine.injector", 14), ConfigMachine.MTE_INJECTOR)
     }
 
-    private fun initExtraWirelessExtended() {
-        if (!ConfigRecipe.RECIPE_EASY_WIRELESS) return
-
-        val zh = StatCollector.translateToLocal("nyx.common.amp") != "A"
-
-        NyxWirelessEnergyList.entries.forEach { wireless ->
-            wireless.register(
-                NyxHatchWirelessEnergy(
-                    aID = offsetWirelessEnergy + wireless.ordinal,
-                    aName = "nyx.hatch.$wireless.${wireless.tier}",
-                    aNameRegional =
-                        if (zh) {
-                            StatCollector.translateToLocalFormatted(
-                                "nyx.wirelessExt.energy.name",
-                                GTUtility.formatNumbers(wireless.amp.toLong()),
-                                wireless.tierName,
-                            )
-                        } else {
-                            StatCollector.translateToLocalFormatted(
-                                "nyx.wirelessExt.energy.name",
-                                wireless.tierName,
-                                GTUtility.formatNumbers(wireless.amp.toLong()),
-                            )
-                        },
-                    aTier = wireless.tier,
-                    aAmp = wireless.amp,
-                ),
-            )
-        }
-        NyxWirelessDynamoList.entries.forEach { wireless ->
-            wireless.register(
-                NyxHatchWirelessDynamo(
-                    aID = offsetWirelessDynamo + wireless.ordinal,
-                    aName = "nyx.hatch.$wireless.${wireless.tier}",
-                    aNameRegional =
-                        if (zh) {
-                            StatCollector.translateToLocalFormatted(
-                                "nyx.wirelessExt.dynamo.name",
-                                GTUtility.formatNumbers(wireless.amp.toLong()),
-                                wireless.tierName,
-                            )
-                        } else {
-                            StatCollector.translateToLocalFormatted(
-                                "nyx.wirelessExt.dynamo.name",
-                                wireless.tierName,
-                                GTUtility.formatNumbers(wireless.amp.toLong()),
-                            )
-                        },
-                    aTier = wireless.tier,
-                    aAmp = wireless.amp,
-                ),
-            )
-        }
-    }
-
     private fun printMteIds() {
         buildList {
             GregTechAPI.METATILEENTITIES.forEachIndexed { i, mte ->
@@ -137,9 +73,5 @@ object MachineLoader : Loader {
         if (condition) {
             this.set(mte.getStackForm(1))
         }
-    }
-
-    private fun ItemList.register(mte: IMetaTileEntity) {
-        this.set(mte.getStackForm(1))
     }
 }

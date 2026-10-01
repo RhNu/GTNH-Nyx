@@ -9,7 +9,7 @@ dependencies {
     implementation(elytraModpackVersion.gtnhdev("Universal-Singularities"))
     implementation(elytraModpackVersion.gtnhdev("CodeChickenCore"))
 
-    compileOnly("com.github.GTNewHorizons:TinkersGregworks:GTNH-1.0.27:dev") { transitive = false }
+    // compileOnly("com.github.GTNewHorizons:TinkersGregworks:GTNH-1.0.27:dev") { transitive = false }
 
     runtimeOnlyNonPublishable(elytraModpackVersion.gtnhdev("BlockRenderer6343")) { transitive = false }
 }

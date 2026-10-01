@@ -1,5 +1,6 @@
 package rhynia.nyx.common.mte.base
 
+/*
 import com.gtnewhorizon.structurelib.structure.IStructureDefinition
 import com.gtnewhorizon.structurelib.structure.IStructureElement
 import com.gtnewhorizon.structurelib.structure.ISurvivalBuildEnvironment
@@ -118,10 +119,11 @@ abstract class NyxMTECubeWirelessBase<T : NyxMTEWirelessBase<T>> : NyxMTEWireles
                     .builder<T>()
                     .atLeast(*sCasingHatch)
                     .adder { c, t, i -> c.addToMachineList(t, i.toInt()) }
-                    .dot(1)
+                    .hint(1)
                     .casingIndex(sCasingIndex)
                     .buildAndChain(sCasingBlock.first, sCasingBlock.second),
             ).build()
 
     protected fun MultiblockTooltipBuilder.beginStructureCube(): MultiblockTooltipBuilder = this.beginStructureBlock(3, 3, 3, false)
 }
+*/

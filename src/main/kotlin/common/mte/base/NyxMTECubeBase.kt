@@ -124,7 +124,7 @@ abstract class NyxMTECubeBase<T : NyxMTEBase<T>> : NyxMTEBase<T> {
                     .builder<T>()
                     .atLeast(*sCasingHatch)
                     .adder { c, t, i -> c.addToMachineList(t, i.toInt()) }
-                    .dot(1)
+                    .hint(1)
                     .casingIndex(sCasingIndex)
                     .buildAndChain(sCasingBlock.first, sCasingBlock.second),
             ).build()

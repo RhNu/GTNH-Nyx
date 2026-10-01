@@ -2,7 +2,6 @@ package rhynia.nyx.common
 
 import gregtech.api.enums.GTValues
 import gregtech.api.interfaces.IItemContainer
-import gregtech.api.util.GTLog
 import gregtech.api.util.GTOreDictUnificator
 import gregtech.api.util.GTUtility
 import net.minecraft.block.Block
@@ -11,7 +10,6 @@ import net.minecraft.item.ItemStack
 import rhynia.nyx.ModLogger
 import rhynia.nyx.api.util.copyAmount
 import rhynia.nyx.api.util.debugItem
-import rhynia.nyx.api.util.size
 import codechicken.nei.api.API as CodeChickenAPI
 
 interface ItemList {
@@ -100,7 +98,6 @@ enum class NyxItemList(
     ): Boolean {
         if (mDeprecated && !mWarned) {
             Exception("$this is now deprecated").let {
-                it.printStackTrace(GTLog.err)
                 ModLogger.error("Accessing deprecated entry $this", it)
             }
             mWarned = true
@@ -120,11 +117,8 @@ enum class NyxItemList(
     ): ItemStack {
         safetyCheck()
         if (GTUtility.isStackInvalid(mStack)) {
-            GTLog.out.let {
-                println("The ItemStack for $this is invalid!")
-                NullPointerException().printStackTrace(it)
-                debugItem("The ItemStack for $this is invalid!").copyAmount(aAmount.toInt())
-            }
+            ModLogger.error("The ItemStack for $this is invalid!", NullPointerException())
+            debugItem("The ItemStack for $this is invalid!").copyAmount(aAmount.toInt())
         }
         return mStack.copyAmount(aAmount.toInt())
     }
@@ -213,156 +207,9 @@ enum class NyxItemList(
         }
         if (mDeprecated && !mWarned) {
             Exception("$this is now deprecated").let {
-                it.printStackTrace(GTLog.err)
                 ModLogger.error("Accessing deprecated entry $this", it)
             }
             mWarned = true
         }
     }
-}
-
-enum class NyxWirelessEnergyList(
-    val tier: Int = 0,
-    val amp: Int = 0,
-) : ItemList {
-    ExtLaserIV1(5, 256),
-    ExtLaserIV2(5, 1024),
-    ExtLaserIV3(5, 4096),
-    ExtLaserIV4(5, 16384),
-    ExtLaserIV5(5, 65536),
-    ExtLaserIV6(5, 262144),
-    ExtLaserIV7(5, 1048576),
-    ExtLaserLuV1(6, 256),
-    ExtLaserLuV2(6, 1024),
-    ExtLaserLuV3(6, 4096),
-    ExtLaserLuV4(6, 16384),
-    ExtLaserLuV5(6, 65536),
-    ExtLaserLuV6(6, 262144),
-    ExtLaserLuV7(6, 1048576),
-    ExtLaserZPM1(7, 256),
-    ExtLaserZPM2(7, 1024),
-    ExtLaserZPM3(7, 4096),
-    ExtLaserZPM4(7, 16384),
-    ExtLaserZPM5(7, 65536),
-    ExtLaserZPM6(7, 262144),
-    ExtLaserZPM7(7, 1048576),
-    ExtLaserUV1(8, 256),
-    ExtLaserUV2(8, 1024),
-    ExtLaserUV3(8, 4096),
-    ExtLaserUV4(8, 16384),
-    ExtLaserUV5(8, 65536),
-    ExtLaserUV6(8, 262144),
-    ExtLaserUV7(8, 1048576),
-    ExtLaserUHV1(9, 256),
-    ExtLaserUHV2(9, 1024),
-    ExtLaserUHV3(9, 4096),
-    ExtLaserUHV4(9, 16384),
-    ExtLaserUHV5(9, 65536),
-    ExtLaserUHV6(9, 262144),
-    ExtLaserUHV7(9, 1048576),
-    ExtLaserUEV1(10, 256),
-    ExtLaserUEV2(10, 1024),
-    ExtLaserUEV3(10, 4096),
-    ExtLaserUEV4(10, 16384),
-    ExtLaserUEV5(10, 65536),
-    ExtLaserUEV6(10, 262144),
-    ExtLaserUEV7(10, 1048576),
-    ExtLaserUIV1(11, 256),
-    ExtLaserUIV2(11, 1024),
-    ExtLaserUIV3(11, 4096),
-    ExtLaserUIV4(11, 16384),
-    ExtLaserUIV5(11, 65536),
-    ExtLaserUIV6(11, 262144),
-    ExtLaserUIV7(11, 1048576),
-    ExtLaserUMV1(12, 256),
-    ExtLaserUMV2(12, 1024),
-    ExtLaserUMV3(12, 4096),
-    ExtLaserUMV4(12, 16384),
-    ExtLaserUMV5(12, 65536),
-    ExtLaserUMV6(12, 262144),
-    ExtLaserUMV7(12, 1048576),
-
-    ;
-
-    private lateinit var mStack: ItemStack
-
-    val tierName: String =
-        when (tier) {
-            5 -> "IV"
-            6 -> "LuV"
-            7 -> "ZPM"
-            8 -> "UV"
-            9 -> "UHV"
-            10 -> "UEV"
-            11 -> "UIV"
-            12 -> "UMV"
-            else -> "?"
-        }
-
-    override fun get(
-        aAmount: Long,
-        vararg aReplacements: Any?,
-    ): ItemStack =
-        if (GTUtility.isStackInvalid(mStack)) {
-            NullPointerException().printStackTrace(GTLog.out)
-            ModLogger.error("The ItemStack for $this is invalid!")
-            debugItem("The ItemStack for $this is invalid!") size aAmount
-        } else {
-            mStack.copyAmount(aAmount)
-        }
-
-    override fun set(itemStack: ItemStack): NyxWirelessEnergyList =
-        apply {
-            mStack = itemStack.copyAmount(1)
-        }
-}
-
-enum class NyxWirelessDynamoList(
-    val tier: Int = 0,
-    val amp: Int = 0,
-) : ItemList {
-    ExtDynamoIV(5, 1048576),
-    ExtDynamoLuV(6, 1048576),
-    ExtDynamoZPM(7, 1048576),
-    ExtDynamoUV(8, 1048576),
-    ExtDynamoUHV(9, 1048576),
-    ExtDynamoUEV(10, 1048576),
-    ExtDynamoUIV(11, 1048576),
-    ExtDynamoUMV(12, 1048576),
-    ExtDynamoUXV(13, 1048576),
-
-    ;
-
-    private lateinit var mStack: ItemStack
-
-    val tierName: String =
-        when (tier) {
-            5 -> "IV"
-            6 -> "LuV"
-            7 -> "ZPM"
-            8 -> "UV"
-            9 -> "UHV"
-            10 -> "UEV"
-            11 -> "UIV"
-            12 -> "UMV"
-            13 -> "UXV"
-            else -> "?"
-        }
-
-    override fun get(
-        aAmount: Long,
-        vararg aReplacements: Any?,
-    ): ItemStack =
-        if (GTUtility.isStackInvalid(mStack)) {
-            NullPointerException().printStackTrace(GTLog.out)
-            ModLogger.warn("The ItemStack for $this is invalid!")
-            debugItem("The ItemStack for $this is invalid!") size aAmount
-        } else {
-            mStack.copyAmount(aAmount)
-        }
-
-    override fun set(itemStack: ItemStack): NyxWirelessDynamoList =
-        apply {
-            mStack = itemStack.copyAmount(1)
-        }
 }

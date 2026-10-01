@@ -9,7 +9,7 @@ import static rhynia.nyx.config.Definition.CATEGORY_MACHINE;
 @Config(modid = MOD_ID, configSubDirectory = MOD_NAME, category = CATEGORY_MACHINE, filename = CATEGORY_MACHINE)
 @Config.RequiresMcRestart
 public class ConfigMachine {
-    @Config.Comment("Offset for MTE IDs, using to solve conflicts with other custom mods, preserves OFFSET+1..OFFSET+100 range.")
+    @Config.Comment("Offset for MTE IDs, using to solve conflicts with other custom mods, preserves OFFSET+1..OFFSET+50 range.")
     @Config.DefaultInt(17800)
     public static int MTE_ID_OFFSET;
 

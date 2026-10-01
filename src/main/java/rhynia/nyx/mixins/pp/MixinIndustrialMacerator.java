@@ -6,10 +6,10 @@ import org.spongepowered.asm.mixin.injection.At;
 import com.llamalad7.mixinextras.injector.ModifyReturnValue;
 
 import gregtech.api.logic.ProcessingLogic;
-import gtPlusPlus.xmod.gregtech.common.tileentities.machines.multi.processing.MTEIndustrialMacerator;
+import gtPlusPlus.xmod.gregtech.common.tileentities.machines.multi.processing.MTEIndustrialMaceratorLegacy;
 
 @SuppressWarnings("SpellCheckingInspection")
-@Mixin(value = MTEIndustrialMacerator.class, priority = 2000, remap = false)
+@Mixin(value = MTEIndustrialMaceratorLegacy.class, priority = 2000, remap = false)
 public class MixinIndustrialMacerator {
 
     @ModifyReturnValue(method = "createProcessingLogic", at = @At("RETURN"))

@@ -6,17 +6,24 @@ import com.gtnewhorizons.modularui.common.widget.DynamicPositionedColumn
 import com.gtnewhorizons.modularui.common.widget.SlotWidget
 import com.gtnewhorizons.modularui.common.widget.TextWidget
 import gregtech.api.GregTechAPI
+import gregtech.api.enums.GTValues
 import gregtech.api.gui.modularui.GTUITextures
 import gregtech.api.interfaces.metatileentity.IMetaTileEntity
 import gregtech.api.interfaces.tileentity.IGregTechTileEntity
-import gregtech.api.interfaces.tileentity.RecipeMapWorkable
 import gregtech.api.logic.ProcessingLogic
 import gregtech.api.metatileentity.BaseTileEntity.TOOLTIP_DELAY
+import gregtech.api.metatileentity.implementations.MTETieredMachineBlock
 import gregtech.api.recipe.RecipeMap
-import gregtech.api.recipe.RecipeMaps
 import gregtech.api.recipe.check.CheckRecipeResult
+import gregtech.api.recipe.check.CheckRecipeResultRegistry
+import gregtech.api.util.GTRecipe
+import gregtech.api.util.GTUtility
 import gregtech.api.util.MultiblockTooltipBuilder
-import gregtech.common.blocks.ItemMachines
+import gregtech.api.util.OverclockCalculator
+import gregtech.api.util.ParallelHelper
+import java.util.stream.Stream
+import kotlin.math.log10
+import kotlin.math.pow
 import net.minecraft.block.Block
 import net.minecraft.entity.player.EntityPlayer
 import net.minecraft.item.ItemStack
@@ -28,16 +35,22 @@ import net.minecraftforge.common.util.ForgeDirection
 import rhynia.nyx.ModLogger
 import rhynia.nyx.api.enums.CheckRecipeResultRef
 import rhynia.nyx.api.enums.CommonString
-import rhynia.nyx.api.item.MetaItemToken
-import rhynia.nyx.api.item.asToken
 import rhynia.nyx.api.process.NyxProcessingLogic
-import rhynia.nyx.api.util.RefContainer
-import rhynia.nyx.api.util.intObjMapOf
 import rhynia.nyx.api.util.localize
 import rhynia.nyx.api.util.localized
 import rhynia.nyx.common.mte.base.NyxMTECubeBase
-import kotlin.math.log10
-import kotlin.math.pow
+import rhynia.nyx.common.mte.proxy.AlgaeAdapter
+import rhynia.nyx.common.mte.proxy.MassFabricatorAdapter
+import rhynia.nyx.common.mte.proxy.ProxyCache
+import rhynia.nyx.common.mte.proxy.ProxyMachine
+import rhynia.nyx.common.mte.proxy.ProxyMachineRegistry
+import rhynia.nyx.common.mte.proxy.ProxyModes
+import rhynia.nyx.common.mte.proxy.ProxyPolicy
+import rhynia.nyx.common.mte.proxy.ProxyStrategy
+import rhynia.nyx.common.mte.proxy.RockBreakerAdapter
+import rhynia.nyx.common.mte.proxy.TreeAdapter
+import rhynia.nyx.common.mte.proxy.proxyPower
+import rhynia.nyx.common.mte.proxy.proxyPowerParallel
 
 class NyxProxy : NyxMTECubeBase<NyxProxy> {
     constructor(
@@ -49,14 +62,32 @@ class NyxProxy : NyxMTECubeBase<NyxProxy> {
 
     override fun newMetaEntity(aTileEntity: IGregTechTileEntity?): IMetaTileEntity = NyxProxy(mName)
 
-    private var pMode: RefContainer<RecipeMap<*>>? = null
-    private var pLastControllerItem: MetaItemToken? = null
+    private val pModes = ProxyModes<RecipeMap<*>> { it.unlocalizedName }
+    private var pMachine: ProxyMachine? = null
+    private var pRevision = 0
     private var pControllerStackSize: Int = 0
+    private val pRockBreaker by lazy { RockBreakerAdapter() }
+
+    private fun nextProxyMode() {
+        if (pMachine?.strategy == ProxyStrategy.ROCK_BREAKER) pRockBreaker.nextMode() else pModes.next()
+        pRevision++
+    }
+
+    private val currentModeName: String?
+        get() =
+            if (pMachine?.strategy == ProxyStrategy.ROCK_BREAKER) pRockBreaker.modeName
+            else pModes.current?.let { localize(it.unlocalizedName) }
 
     override val rMaxParallel: Int
         get() = LogarithmicMapper[pControllerStackSize]
 
-    override fun getRecipeMap(): RecipeMap<*>? = pMode?.current
+    override fun getRecipeMap(): RecipeMap<*>? {
+        updateRecipeContainer()
+        return pModes.current
+    }
+
+    // Persisted recipe locks bypass strategy matching and cannot be safe for dynamic recipes.
+    override fun supportsSingleRecipeLocking(): Boolean = false
 
     override fun getAvailableRecipeMaps(): Collection<RecipeMap<*>?> = emptyList()
 
@@ -69,24 +100,116 @@ class NyxProxy : NyxMTECubeBase<NyxProxy> {
         aTool: ItemStack?,
     ) {
         super.onScrewdriverRightClick(side, aPlayer, aX, aY, aZ, aTool)
-        pMode?.let { mode ->
-            mode.next()
-            ModLogger.debug("Recipe map: ${mode.currentName}")
-        }
+        nextProxyMode()
     }
 
     override fun createProcessingLogic(): ProcessingLogic =
         object : NyxProcessingLogic() {
+            private var revision = -1
+            private val massFabricator by lazy { MassFabricatorAdapter() }
+            private val algae by lazy { AlgaeAdapter() }
+            private val trees by lazy { ProxyCache<Class<*>, TreeAdapter>(2) { it } }
+
+            private fun voltageTier(): Int = GTUtility.getTierExtended(availableVoltage).coerceIn(0, GTValues.V.lastIndex)
+
+            private fun actualMockEUt(): Long =
+                when (pMachine?.strategy) {
+                    ProxyStrategy.TREE -> GTValues.VP[voltageTier().coerceAtLeast(1)]
+                    ProxyStrategy.ALGAE -> algae.actualEUt(voltageTier())
+                    else -> 0
+                }
+
+            private fun discountedMockEUt(): Long = kotlin.math.ceil(actualMockEUt() * euModifier).toLong()
+
             override fun process(): CheckRecipeResult {
-                if (updateRecipeContainer()) {
-                    setEuModifier(rEuModifier)
-                    setSpeedBonus(rTimeModifier)
-                    setOverclock(rOverclockType)
-                    return super.process()
-                } else {
-                    return CheckRecipeResultRef.NO_RECIPE_MAP_SET
+                if (!updateRecipeContainer()) return CheckRecipeResultRef.NO_RECIPE_MAP_SET
+                // Also reject old saved locks. They must not bypass a changed controller or deny policy.
+                isRecipeLocked = false
+                if (revision != pRevision || pMachine?.strategy != ProxyStrategy.DEFAULT) {
+                    lastRecipe = null
+                    activeDualInv = null
+                    dualInvWithPatternToRecipeCache.clear()
+                    revision = pRevision
+                }
+                setEuModifier(rEuModifier)
+                setSpeedBonus(rTimeModifier)
+                setOverclock(rOverclockType)
+                return super.process()
+            }
+
+            override fun findRecipeMatches(map: RecipeMap<*>?): Stream<GTRecipe> {
+                return when (pMachine?.strategy) {
+                    ProxyStrategy.MASS_FABRICATOR ->
+                        massFabricator.findRecipe(inputItems ?: emptyArray(), inputFluids ?: emptyArray())
+                            ?.let { Stream.of(it) } ?: Stream.empty()
+                    ProxyStrategy.TREE -> {
+                        val machineClass = pMachine?.source?.javaClass ?: return Stream.empty()
+                        val sourceClass = generateSequence<Class<*>>(machineClass) { it.superclass }
+                            .firstOrNull { it.name in ProxyPolicy.mockMachineTypeNames.getValue(ProxyStrategy.TREE) }
+                            ?: return Stream.empty()
+                        trees.getOrCreate(sourceClass) { TreeAdapter(sourceClass) }
+                            ?.findRecipes(voltageTier().coerceAtLeast(1), inputItems ?: emptyArray())
+                            ?.stream() ?: Stream.empty()
+                    }
+                    ProxyStrategy.ALGAE -> algae.findRecipes(voltageTier(), inputItems ?: emptyArray()).stream()
+                    ProxyStrategy.ROCK_BREAKER -> pRockBreaker.findRecipes(inputItems ?: emptyArray()).stream()
+                    ProxyStrategy.DEFAULT -> super.findRecipeMatches(map)
+                    else -> Stream.empty()
                 }
             }
+
+            override fun validateRecipe(recipe: GTRecipe): CheckRecipeResult {
+                if (pMachine?.strategy == ProxyStrategy.TREE || pMachine?.strategy == ProxyStrategy.ALGAE) {
+                    val cost = discountedMockEUt()
+                    if (cost <= 0 || cost > proxyPower(availableVoltage, availableAmperage)) {
+                        return CheckRecipeResultRegistry.insufficientPower(cost.coerceAtLeast(1))
+                    }
+                }
+                return super.validateRecipe(recipe)
+            }
+
+            override fun createParallelHelper(recipe: GTRecipe): ParallelHelper {
+                val helper = super.createParallelHelper(recipe)
+                return when (pMachine?.strategy) {
+                    ProxyStrategy.MASS_FABRICATOR -> helper
+                        .setAvailableEUt(proxyPower(availableVoltage, availableAmperage))
+                        .setMaxParallelCalculator(massFabricator::maxParallel)
+                    ProxyStrategy.TREE, ProxyStrategy.ALGAE -> helper
+                        .setAvailableEUt(proxyPower(availableVoltage, availableAmperage))
+                        .setMaxParallelCalculator { r, maximum, fluids, items ->
+                            val bound = minOf(
+                                proxyPowerParallel(
+                                    proxyPower(availableVoltage, availableAmperage), discountedMockEUt(), maximum,
+                                ),
+                                proxyPowerParallel(Long.MAX_VALUE, actualMockEUt(), maximum),
+                            )
+                            r.maxParallelCalculatedByInputs(bound, fluids, *items)
+                        }
+                    ProxyStrategy.ROCK_BREAKER -> helper
+                        .setAvailableEUt(proxyPower(availableVoltage, availableAmperage))
+                        .setMaxParallelCalculator(pRockBreaker::maxParallel)
+                        .setInputConsumer(pRockBreaker::consumeInputs)
+                    else -> helper
+                }
+            }
+
+            override fun createOverclockCalculator(recipe: GTRecipe): OverclockCalculator =
+                if (pMachine?.strategy == ProxyStrategy.MASS_FABRICATOR) {
+                    massFabricator.createOverclockCalculator(
+                        recipe,
+                        (pMachine?.source as? MTETieredMachineBlock)?.mTier?.toInt() ?: 1,
+                        availableVoltage,
+                        availableAmperage,
+                        euModifier,
+                        speedBoost,
+                    )
+                } else if (pMachine?.strategy == ProxyStrategy.TREE || pMachine?.strategy == ProxyStrategy.ALGAE) {
+                    OverclockCalculator.ofNoOverclock(actualMockEUt(), recipe.mDuration)
+                        .setEUtDiscount(euModifier)
+                        .setDurationModifier(speedBoost)
+                } else {
+                    super.createOverclockCalculator(recipe)
+                }
 
             init {
                 setMaxParallelSupplier(::rMaxParallel)
@@ -94,24 +217,20 @@ class NyxProxy : NyxMTECubeBase<NyxProxy> {
         }
 
     private fun updateRecipeContainer(): Boolean {
-        val controllerItem = controllerSlot ?: return false
-
-        val token = controllerItem.asToken()
-        val modeContainer = RecipeMapper.getRecipeMap(token)
-
-        if (modeContainer != null) {
-            pMode = modeContainer
-            pLastControllerItem = token
-            pControllerStackSize = controllerItem.stackSize
-            ModLogger.debug("Update recipe map: ${pMode!!.currentName}")
-            return true
-        } else {
-            pMode = null
-            pLastControllerItem = null
-            pControllerStackSize = 0
-            ModLogger.info("Update recipe map: null")
-            return false
+        val machine = ProxyMachineRegistry.resolve(controllerSlot)
+        val previous = pMachine
+        if (machine?.source !== previous?.source || machine?.strategy != previous?.strategy ||
+            machine?.maps != previous?.maps
+        ) {
+            pRevision++
+            pModes.replace(machine?.maps ?: emptyList())
+            if (ModLogger.isDebugEnabled) {
+                ModLogger.debug("Proxy strategy: ${machine?.strategy}, map: ${pModes.current?.unlocalizedName}")
+            }
         }
+        pMachine = machine
+        pControllerStackSize = if (machine == null) 0 else controllerSlot?.stackSize ?: 0
+        return machine != null
     }
 
     override val sCasingBlock: Pair<Block, Int>
@@ -131,7 +250,7 @@ class NyxProxy : NyxMTECubeBase<NyxProxy> {
             TextWidget
                 .dynamicString {
                     "${WHITE}${"nyx.common.current"
-                        .localized()}: ${pMode?.let { AQUA.toString() + it.currentName } ?: "${DARK_RED}?"}"
+                        .localized()}: ${currentModeName?.let { AQUA.toString() + it } ?: "${DARK_RED}?"}"
                 },
         )
         super.drawTexts(screenElements, inventorySlot)
@@ -147,7 +266,9 @@ class NyxProxy : NyxMTECubeBase<NyxProxy> {
                 .addTooltip(localize("nyx.machine.proxy.gui.t.1"))
                 .setTooltipShowUpDelay(TOOLTIP_DELAY),
             ButtonWidget()
-                .setOnClick { _, _ -> pMode?.next() }
+                .setOnClick { _, _ ->
+                    nextProxyMode()
+                }
                 .setPlayClickSound(true)
                 .setBackground(GTUITextures.BUTTON_STANDARD, GTUITextures.OVERLAY_BUTTON_CHECKMARK)
                 .setSize(16, 16)
@@ -157,13 +278,22 @@ class NyxProxy : NyxMTECubeBase<NyxProxy> {
 
     override fun loadNBTData(aNBT: NBTTagCompound) {
         super.loadNBTData(aNBT)
-        if (pMode == null) updateRecipeContainer()
-        pMode?.loadNBTData(aNBT, "pMode")
+        updateRecipeContainer()
+        pModes.restore(aNBT.getInteger("pMode"), aNBT.getString("pModeName"))
+        if (pMachine?.strategy == ProxyStrategy.ROCK_BREAKER) {
+            pRockBreaker.restoreMode(aNBT.getInteger("pRockMode"), aNBT.getString("pRockModeId"))
+        }
+        pRevision++
     }
 
     override fun saveNBTData(aNBT: NBTTagCompound) {
         super.saveNBTData(aNBT)
-        pMode?.saveNBTData(aNBT, "pMode")
+        aNBT.setInteger("pMode", pModes.index)
+        pModes.current?.let { aNBT.setString("pModeName", it.unlocalizedName) }
+        if (pMachine?.strategy == ProxyStrategy.ROCK_BREAKER) {
+            aNBT.setInteger("pRockMode", pRockBreaker.modeIndex)
+            pRockBreaker.modeId?.let { aNBT.setString("pRockModeId", it) }
+        }
     }
 
     object LogarithmicMapper {
@@ -191,43 +321,4 @@ class NyxProxy : NyxMTECubeBase<NyxProxy> {
         operator fun get(i: Int) = mappingCache[i.coerceIn(0, 64)]
     }
 
-    object RecipeMapper {
-        private val gtMteCache = intObjMapOf<RefContainer<RecipeMap<*>>?>()
-
-        fun getRecipeMap(token: MetaItemToken): RefContainer<RecipeMap<*>>? {
-            when (token.item) {
-                is ItemMachines -> {
-                    val id = token.meta.takeIf { it > 0 } ?: return null
-                    if (gtMteCache.containsKey(id)) return gtMteCache[id]
-
-                    val mte = GregTechAPI.METATILEENTITIES[id] ?: return null
-                    val recipeMaps =
-                        when (mte) {
-                            is RecipeMapWorkable ->
-                                mte.availableRecipeMaps.filter {
-                                    it != RecipeMaps.assemblylineVisualRecipes
-                                }
-                            else -> return null
-                        }
-
-                    return recipeMaps.size
-                        .takeIf { it > 0 }
-                        ?.let {
-                            RefContainer(recipeMaps).also {
-                                gtMteCache[id] = it
-                            }
-                        } ?: null.also { gtMteCache[id] = null }
-                }
-                else -> {
-                    ModLogger.info("Unsupported token item: ${token.item.javaClass.name}")
-                    return null
-                }
-            }
-        }
-    }
-
-    companion object {
-        private val RefContainer<RecipeMap<*>>.currentName: String
-            get() = localize(current.unlocalizedName)
-    }
 }

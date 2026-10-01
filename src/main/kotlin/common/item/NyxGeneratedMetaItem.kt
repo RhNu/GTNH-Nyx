@@ -44,7 +44,7 @@ class NyxGeneratedMetaItem(
                 if (hasLocalization(it)) {
                     it.localized()
                 } else {
-                    "${prefix.mLocalizedMaterialPre}%material${prefix.mLocalizedMaterialPost}"
+                    "${prefix.materialPrefix}%material${prefix.materialPostfix}"
                 }
             }
 
@@ -106,13 +106,13 @@ class NyxGeneratedMetaItem(
     override fun getIconContainer(aMetaData: Int): IIconContainer? =
         if (MaterialMap[aMetaData.toShort()] == null) {
             null
-        } else if (orePrefix.mTextureIndex.toInt() == -1) {
+        } else if (orePrefix.textureIndex == -1) {
             proxyIconContainerBartWorks(aMetaData)
         } else {
             MaterialMap[aMetaData.toShort()]
                 ?.textureSet
                 ?.mTextures
-                ?.get(orePrefix.mTextureIndex.toInt())
+                ?.get(orePrefix.textureIndex)
         }
 
     @SideOnly(Side.CLIENT)
@@ -141,7 +141,7 @@ class NyxGeneratedMetaItem(
             getIconContainer(aMetaData)?.icon
         }
 
-    override fun getItemStackLimit(aStack: ItemStack?): Int = orePrefix.mDefaultStackSize.toInt()
+    override fun getItemStackLimit(aStack: ItemStack?): Int = orePrefix.defaultStackSize
 
     override fun getCapacity(aStack: ItemStack?): Int =
         when (orePrefix) {

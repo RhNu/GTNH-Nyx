@@ -53,13 +53,6 @@ nyx.ore.wireFine=%material线
 
 nyx.tooltip.press_more_info=按下 §b§fShift§r§7 查看更多信息
 
-nyx.wirelessExt.energy.name=%s安%s无线能源仓
-nyx.wirelessExt.dynamo.name=%s安%s无线动力仓
-nyx.wirelessExt.tooltip.0=§7将能量存储于全局网络中，上限为2^(2^31)EU.
-nyx.wirelessExt.tooltip.1=§7不连接导线，此方块可以从网络中抽取EU.
-nyx.wirelessExt.tooltip.2=§b额外无线设备系列
-
-nyx.common.amp=安
 nyx.common.current=当前
 nyx.common.NyxMagical=§bNyx§cCreation§7 - §a魔法揭示
 nyx.common.NyxNuclear=§bNyx§cCreation§7 - §a热核反应
@@ -90,6 +83,11 @@ nyx.machine.proxy.name=代理执行 (WIP)
 nyx.machine.proxy.type=处理阵列
 nyx.machine.proxy.gui.t.0=切换模式
 nyx.machine.proxy.gui.t.1=更新配方
+nyx.machine.proxy.rock.top=上方：%s
+nyx.machine.proxy.rock.bottom=下方：%s
+nyx.machine.proxy.rock.sides=侧面：%s
+nyx.machine.proxy.rock.anywhere=任意方位：%s
+nyx.machine.proxy.rock.none=无环境需求
 
 nyx.machine.converter.name=矿典同步
 nyx.machine.converter.type=矿辞转换器

@@ -82,11 +82,13 @@ object NyxMaterialLoader : Loader {
         }
     }
 
-    private fun getUsedOrePrefixes(): Set<OrePrefixes> =
-        MaterialSet
+    private fun getUsedOrePrefixes(): Set<OrePrefixes> {
+        val order = OrePrefixes.VALUES.withIndex().associate { (i, p) -> p to i }
+        return MaterialSet
             .flatMap { it.getFinalOrePrefixes() }
-            .toSortedSet(compareBy { it.ordinal })
+            .toSortedSet(compareBy { order[it] ?: Int.MAX_VALUE })
             .also { ModLogger.debug("Used ore prefixes: ${it.joinToString(", ") { p -> p.name }}") }
+    }
 
     private fun generateMetaItem() {
         getUsedOrePrefixes().forEach {

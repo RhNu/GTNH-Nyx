@@ -53,13 +53,6 @@ nyx.ore.wireFine=Fine %material Wire
 
 nyx.tooltip.press_more_info=Press §b§fShift§r§7 for more info
 
-nyx.wirelessExt.energy.name=%s %sA Wireless Energy Hatch
-nyx.wirelessExt.dynamo.name=%s %sA Wireless Energy Dynamo
-nyx.wirelessExt.tooltip.0=§7Stores energy globally in a network, up to 2^(2^31) EU.
-nyx.wirelessExt.tooltip.1=§7Does not connect to wires. This block withdraws EU from the network.
-nyx.wirelessExt.tooltip.2=§bExtra Wireless Series
-
-nyx.common.amp=A
 nyx.common.current=Current
 nyx.common.NyxMagical=§bNyx§cCreation§7 - §aMagical Revelation
 nyx.common.NyxNuclear=§bNyx§cCreation§7 - §aThermonuclear Reaction
@@ -90,6 +83,11 @@ nyx.machine.proxy.name=PROXY (WIP)
 nyx.machine.proxy.type=Functional Proxy
 nyx.machine.proxy.gui.t.0=Next Mode
 nyx.machine.proxy.gui.t.1=Update Recipe
+nyx.machine.proxy.rock.top=Top: %s
+nyx.machine.proxy.rock.bottom=Bottom: %s
+nyx.machine.proxy.rock.sides=Sides: %s
+nyx.machine.proxy.rock.anywhere=Anywhere: %s
+nyx.machine.proxy.rock.none=No environmental requirement
 
 nyx.machine.converter.name=CONVERTER
 nyx.machine.converter.type=OreDict Converter

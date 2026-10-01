@@ -109,21 +109,9 @@ class GTEasyWirelessRecipes : RecipePool() {
                     eut(tier)
                     durSec(time)
                 }
-
-                newRecipe {
-                    itemInputs(
-                        tier.getDynamoHatch4A(1),
-                        tier.getCircuit(3),
-                        tier.getComponent(Tier.Component.Emitter, 2),
-                        tier.getComponent(Tier.Component.Sensor, 2),
-                        ic(22),
-                    )
-                    fluidInputs(tier.getIngotSolder(16))
-                    itemOutputs(tier.getLaserDynamoWireless(1))
-                    eut(tier)
-                    durSec(time)
-                }
-
+            }
+            // Wireless laser tunnels only exist at UXV.
+            Tier.UXV.let { tier ->
                 newRecipeIter(1..7) { lvl ->
                     itemInputs(
                         tier.getLaserTarget(lvl, 1),

@@ -112,31 +112,21 @@ class NyxInjector :
         colorIndex: Int,
         aActive: Boolean,
         aRedstone: Boolean,
-    ): Array<ITexture> =
-        arrayOf(
-            MACHINE_CASINGS_TT[mTier.toInt()][colorIndex + 1],
+    ): Array<ITexture> {
+        val tier = mTier.toInt()
+        val overlay =
             if (side != facing) {
-                if (wireless) {
-                    (
-                        if (aActive) {
-                            OVERLAYS_ENERGY_OUT_LASER_TT[mTier.toInt()]
-                        } else {
-                            OVERLAYS_ENERGY_IN_LASER_TT[mTier.toInt()]
-                        }
-                    )
-                } else {
-                    (
-                        if (aActive) {
-                            OVERLAYS_ENERGY_OUT_POWER_TT[mTier.toInt()]
-                        } else {
-                            OVERLAYS_ENERGY_IN_POWER_TT[mTier.toInt()]
-                        }
-                    )
+                when {
+                    wireless && aActive -> OVERLAYS_ENERGY_OUT_LASER_TT[tier]
+                    wireless -> OVERLAYS_ENERGY_IN_LASER_TT[tier]
+                    aActive -> OVERLAYS_ENERGY_OUT_POWER_TT[tier]
+                    else -> OVERLAYS_ENERGY_IN_POWER_TT[tier]
                 }
             } else {
                 GENNY
-            },
-        )
+            }
+        return arrayOf(MACHINE_CASINGS_TT[tier][colorIndex + 1], overlay)
+    }
 
     override fun getTextureSet(aTextures: Array<ITexture?>?): Array<Array<Array<ITexture?>?>?>? = null
 
@@ -173,20 +163,22 @@ class NyxInjector :
         aBaseMetaTileEntity: IGregTechTileEntity,
         aTick: Long,
     ) {
-        ownerUUID = aBaseMetaTileEntity.ownerUuid
-        if (aBaseMetaTileEntity.isServerSide) {
-            aBaseMetaTileEntity.isActive = producing
-            if (!wireless) {
-                euVar = if (aBaseMetaTileEntity.isActive) maxEUStore() else 0
-            } else {
-                val t = (aTick % 20).toByte()
-                if (aBaseMetaTileEntity.isActive && TRANSFER_AT == t) {
-                    euVar = maxEUStore()
-                    addEUToGlobalEnergyMap(ownerUUID, abs(euVar))
-                } else if (TRANSFER_AT == t) {
-                    euVar = 0
-                }
-            }
+        if (!aBaseMetaTileEntity.isServerSide) return
+
+        aBaseMetaTileEntity.isActive = producing
+        if (!wireless) {
+            euVar = if (aBaseMetaTileEntity.isActive) maxEUStore() else 0
+            return
+        }
+
+        if (TRANSFER_AT != (aTick % 20).toByte()) return
+        if (aBaseMetaTileEntity.isActive) {
+            // Resolved once instead of on every tick; the owner cannot change in place.
+            if (ownerUUID == null) ownerUUID = aBaseMetaTileEntity.ownerUuid
+            euVar = maxEUStore()
+            addEUToGlobalEnergyMap(ownerUUID, abs(euVar))
+        } else {
+            euVar = 0
         }
     }
 
@@ -212,20 +204,23 @@ class NyxInjector :
 
     override fun isOutputFacing(side: ForgeDirection?): Boolean = producing && side != baseMetaTileEntity!!.frontFacing
 
-    override fun maxAmperesIn(): Long = (if (producing) 0 else abs(aMP.toDouble()).toInt()).toLong()
+    // These are polled by the energy net every tick, so keep them on integer math.
+    override fun maxAmperesIn(): Long = if (producing) 0 else abs(aMP.toLong())
 
-    override fun maxAmperesOut(): Long = (if (producing) abs(aMP.toDouble()).toInt() else 0).toLong()
+    override fun maxAmperesOut(): Long = if (producing) abs(aMP.toLong()) else 0
 
-    override fun maxEUInput(): Long = (if (producing) 0 else Int.MAX_VALUE).toLong()
+    override fun maxEUInput(): Long = if (producing) 0 else Int.MAX_VALUE.toLong()
 
-    override fun maxEUOutput(): Long = (if (producing) abs(eUT.toDouble()).toInt() else 0).toLong()
+    override fun maxEUOutput(): Long = if (producing) abs(eUT.toLong()) else 0
 
-    override fun maxEUStore(): Long =
-        if (wireless) {
-            abs((eUT.toLong() * this.aMP * 24).toDouble()).toLong()
+    override fun maxEUStore(): Long {
+        val base = abs(eUT.toLong() * aMP)
+        return if (wireless) {
+            if (base > Long.MAX_VALUE / 24) Long.MAX_VALUE else base * 24
         } else {
-            (abs((eUT.toLong() * this.aMP).toDouble()).toInt() shl 2).toLong()
+            (base.coerceAtMost(Int.MAX_VALUE.toLong()).toInt() shl 2).toLong()
         }
+    }
 
     override fun maxProgresstime(): Int = baseMetaTileEntity!!.universalEnergyCapacity.toInt()
 
@@ -246,7 +241,7 @@ class NyxInjector :
             ).widget(
                 TextWidget
                     .dynamicString {
-                        "TIER: " + VN[GTUtility.getTier(abs(eUT.toDouble()).toLong()).toInt()]
+                        "TIER: " + VN[GTUtility.getTier(abs(eUT.toLong())).toInt()]
                     }.setDefaultColor(COLOR_TEXT_WHITE.get())
                     .setPos(46, 22),
             ).widget(
@@ -460,7 +455,7 @@ class NyxInjector :
     companion object {
         @Suppress("SpellCheckingInspection")
         val GENNY: ITexture by lazy {
-            TextureFactory.of(Textures.BlockIcons.CustomIcon("iconsets/GENNY"))
+            TextureFactory.of(Textures.BlockIcons.custom("iconsets/GENNY"))
         }
     }
 }

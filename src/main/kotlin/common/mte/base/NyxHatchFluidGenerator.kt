@@ -1,5 +1,6 @@
 package rhynia.nyx.common.mte.base
 
+import com.gtnewhorizon.gtnhlib.util.numberformatting.NumberFormatUtil
 import gregtech.api.enums.Textures
 import gregtech.api.interfaces.ITexture
 import gregtech.api.interfaces.tileentity.IGregTechTileEntity
@@ -8,7 +9,6 @@ import gregtech.api.metatileentity.implementations.MTEHatchInput
 import gregtech.api.objects.XSTR
 import gregtech.api.render.TextureFactory
 import gregtech.api.util.GTUtility
-import gtPlusPlus.core.util.minecraft.FluidUtils
 import net.minecraft.entity.player.EntityPlayer
 import net.minecraft.item.ItemStack
 import net.minecraft.nbt.NBTTagCompound
@@ -47,7 +47,7 @@ abstract class NyxHatchFluidGenerator : MTEHatchInput {
     abstract val fluidToGenerate: Fluid
 
     override fun getDescription(): Array<String> {
-        val capacityString = "容量: ${GTUtility.formatNumbers(capacity.toLong())}L"
+        val capacityString = "容量: ${NumberFormatUtil.formatNumber(capacity.toLong())}L"
         val hatchTierString = "仓室等级: ${GTUtility.getColoredTierNameFromTier(mTier)}"
         return buildList {
             addAll(mDescriptionArray)
@@ -124,7 +124,7 @@ abstract class NyxHatchFluidGenerator : MTEHatchInput {
 
     override fun doesFillContainers(): Boolean = true
 
-    fun addFluidToHatch(aTick: Long): Boolean = this.fill(FluidUtils.getFluidStack(fluidToGenerate, getCapacity()), true) > 0
+    fun addFluidToHatch(aTick: Long): Boolean = this.fill(FluidStack(fluidToGenerate, getCapacity()), true) > 0
 
     override fun fill(
         aFluid: FluidStack?,

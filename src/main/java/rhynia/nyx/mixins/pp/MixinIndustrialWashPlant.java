@@ -6,9 +6,9 @@ import org.spongepowered.asm.mixin.injection.At;
 import com.llamalad7.mixinextras.injector.ModifyReturnValue;
 
 import gregtech.api.logic.ProcessingLogic;
-import gtPlusPlus.xmod.gregtech.common.tileentities.machines.multi.processing.MTEIndustrialWashPlant;
+import gtPlusPlus.xmod.gregtech.common.tileentities.machines.multi.processing.MTEIndustrialWashPlantLegacy;
 
-@Mixin(value = MTEIndustrialWashPlant.class, priority = 2000, remap = false)
+@Mixin(value = MTEIndustrialWashPlantLegacy.class, priority = 2000, remap = false)
 public class MixinIndustrialWashPlant {
 
     @ModifyReturnValue(method = "createProcessingLogic", at = @At("RETURN"))

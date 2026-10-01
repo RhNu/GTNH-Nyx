@@ -41,8 +41,6 @@ enum class MixinEntry(
     val condition: (() -> Boolean) = builder.condition ?: { true }
 
     companion object {
-        private val alwaysLoadMixins = listOf("gt.AccessorGTMaterial")
-
         fun findLateMixins(loadedMods: Set<String>): List<String> {
             ConfigurationManager.registerConfig(ConfigMachine::class.java)
             ConfigurationManager.registerConfig(ConfigRecipe::class.java)
@@ -58,7 +56,6 @@ enum class MixinEntry(
                     mininsNotLoad.addAll(it.mixinClasses)
                 }
             }
-            mixinsToLoad.addAll(alwaysLoadMixins)
             ModLogger.info("Mixins to load: $mixinsToLoad")
             if (mininsNotLoad.isNotEmpty()) ModLogger.info("Mixins not load: $mininsNotLoad")
             return mixinsToLoad

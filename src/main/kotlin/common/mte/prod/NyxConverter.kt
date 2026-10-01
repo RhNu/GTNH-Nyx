@@ -5,29 +5,31 @@ import com.gtnewhorizons.modularui.common.widget.DynamicPositionedColumn
 import com.gtnewhorizons.modularui.common.widget.SlotWidget
 import com.gtnewhorizons.modularui.common.widget.TextWidget
 import gregtech.api.GregTechAPI
+import gregtech.api.enums.HatchElement.InputBus
 import gregtech.api.enums.HatchElement.OutputBus
-import gregtech.api.enums.HatchElement.OutputHatch
 import gregtech.api.enums.OrePrefixes
-import gregtech.api.enums.Textures
 import gregtech.api.enums.Textures.BlockIcons.OVERLAY_DTPF_OFF
 import gregtech.api.enums.Textures.BlockIcons.OVERLAY_DTPF_ON
 import gregtech.api.interfaces.IHatchElement
+import gregtech.api.interfaces.IIconContainer
 import gregtech.api.interfaces.metatileentity.IMetaTileEntity
 import gregtech.api.interfaces.tileentity.IGregTechTileEntity
 import gregtech.api.logic.ProcessingLogic
 import gregtech.api.recipe.check.CheckRecipeResult
 import gregtech.api.recipe.check.CheckRecipeResultRegistry
 import gregtech.api.util.MultiblockTooltipBuilder
+import it.unimi.dsi.fastutil.objects.Object2LongOpenHashMap
+import it.unimi.dsi.fastutil.objects.Object2ObjectOpenHashMap
 import net.minecraft.block.Block
 import net.minecraft.item.ItemStack
 import net.minecraft.nbt.NBTTagCompound
+import net.minecraft.nbt.NBTTagList
 import net.minecraft.util.EnumChatFormatting
 import rhynia.nyx.api.enums.CommonString
 import rhynia.nyx.api.item.MetaItemToken
 import rhynia.nyx.api.item.asToken
 import rhynia.nyx.api.util.getItemOrNull
 import rhynia.nyx.api.util.localize
-import rhynia.nyx.api.util.objLongMapOf
 import rhynia.nyx.api.util.setItem
 import rhynia.nyx.common.mte.base.NyxMTECubeBase
 import rhynia.nyx.init.MaterialMapper
@@ -44,115 +46,152 @@ class NyxConverter : NyxMTECubeBase<NyxConverter> {
 
     private var pControllerToken: MetaItemToken = MetaItemToken.EMPTY
     private var pOrePrefix: OrePrefixes? = null
+    private val pMaterialCredits = Object2LongOpenHashMap<String>()
+
+    private class MaterialBatch(
+        val material: MaterialMapper.MaterialData,
+    ) {
+        val inputStacks = mutableListOf<ItemStack>()
+        var incomingAmount = 0L
+        var overflowed = false
+    }
+
+    private data class PlannedBatch(
+        val batch: MaterialBatch,
+        val remainder: Long,
+    )
 
     override fun createProcessingLogic(): ProcessingLogic? = null
 
     override fun checkProcessing(): CheckRecipeResult {
-        val controllerStack = controllerSlot
+        val controllerStack = controllerSlot ?: return pStop(true)
+        val currentToken = controllerStack.asToken()
+        if (currentToken.isEmpty()) return pStop(true)
 
         if (isRecipeLockingEnabled) {
             if (pControllerToken.isEmpty() || pOrePrefix == null) {
                 return pStop(true)
             }
-            val currentToken = controllerStack?.asToken() ?: return pStop(true)
-            if (currentToken != pControllerToken) {
+            val currentPrefix = MaterialMapper.lookupOrePrefix(controllerStack) ?: return pStop(true)
+            if (currentToken != pControllerToken || currentPrefix !== pOrePrefix) {
                 return pStop(true)
             }
         } else {
-            pControllerToken = controllerStack?.asToken() ?: return pStop(true)
-            if (pControllerToken.isEmpty()) return pStop(true)
-            pOrePrefix = MaterialMapper.lookupOrePrefix(pControllerToken) ?: return pStop(true)
+            pOrePrefix = MaterialMapper.lookupOrePrefix(controllerStack) ?: return pStop(true)
+            pControllerToken = currentToken
         }
 
         val targetPrefix = pOrePrefix!!
-        val targetMaterialAmount = targetPrefix.mMaterialAmount.takeIf { it > 0 } ?: return pStop(true)
+        val targetMaterialAmount = targetPrefix.materialAmount
+        if (targetMaterialAmount <= 0) return pStop(true)
 
         val inputItem = storedInputs.also { it.remove(controllerStack) }
-        if (inputItem.isEmpty()) return pStop()
+        val batches =
+            Object2ObjectOpenHashMap<MaterialMapper.MaterialData, MaterialBatch>(
+                inputItem.size + pMaterialCredits.size,
+            )
 
-        data class InputData(
-            val stack: ItemStack,
-            val material: MaterialMapper.MaterialData,
-            val prefix: OrePrefixes,
-            val materialAmount: Long,
-        )
+        // One pass over all input slots: lookup once, then aggregate exact integer material amounts.
+        for (stack in inputItem) {
+            if (stack.stackSize <= 0) continue
+            val lookup = MaterialMapper.lookup(stack) ?: continue
+            if (!lookup.material.hasOrePrefix(targetPrefix)) continue
 
-        // map input items to InputData to avoid multiple lookups
-        val inputDataList =
-            inputItem.mapNotNull {
-                val (material, prefix) = MaterialMapper.lookup(it) ?: return@mapNotNull null
-                if (!material.hasOrePrefix(targetPrefix)) return@mapNotNull null
-                val sourceMaterialAmount = prefix.mMaterialAmount.takeIf { i -> i > 0 } ?: return@mapNotNull null
-                InputData(it, material, prefix, sourceMaterialAmount)
-            }
+            val batch =
+                batches[lookup.material]
+                    ?: MaterialBatch(lookup.material).also { batches[lookup.material] = it }
+            batch.inputStacks.add(stack)
+            if (batch.overflowed) continue
 
-        if (inputDataList.isEmpty()) return pStop()
-
-        // merge input items by material
-        val materialAmountMap = objLongMapOf<MaterialMapper.MaterialData>()
-        inputDataList.forEach {
-            val totalMaterialAmount = it.materialAmount * it.stack.stackSize
-            materialAmountMap[it.material] = materialAmountMap.getLong(it.material) + totalMaterialAmount
-        }
-
-        // calculate output counts
-        val outputData = objLongMapOf<MaterialMapper.MaterialData>()
-        for ((material, totalAmount) in materialAmountMap) {
-            val outputCount = totalAmount / targetMaterialAmount
-            if (outputCount > 0) {
-                outputData[material] = outputCount
+            try {
+                val stackAmount = Math.multiplyExact(lookup.materialAmount, stack.stackSize.toLong())
+                batch.incomingAmount = Math.addExact(batch.incomingAmount, stackAmount)
+            } catch (_: ArithmeticException) {
+                // Do not consume an unrepresentable batch; unsafe oversized stacks must not wrap.
+                batch.overflowed = true
             }
         }
 
-        if (outputData.isEmpty()) return pStop()
-
-        // only consume the needed amount
-        for (inputData in inputDataList) {
-            val outputCount = outputData.getLong(inputData.material).takeIf { it > 0 } ?: continue
-
-            // calculate how much to consume from this stack
-            val neededAmount = outputCount * targetMaterialAmount
-
-            // consume ratio capped to 1.0 to avoid over-consumption due to rounding
-            val consumeRatio =
-                minOf(
-                    1.0,
-                    neededAmount.toDouble() / (materialAmountMap.getLong(inputData.material).takeIf { it > 0 } ?: 1),
-                )
-            val consumeCount = (inputData.stack.stackSize * consumeRatio).toInt()
-
-            inputData.stack.stackSize = maxOf(0, inputData.stack.stackSize - consumeCount)
+        // A target-prefix change can make an existing remainder large enough to emit by itself.
+        val creditIterator = pMaterialCredits.object2LongEntrySet().fastIterator()
+        while (creditIterator.hasNext()) {
+            val entry = creditIterator.next()
+            if (entry.longValue <= 0) continue
+            val material = MaterialMapper.lookupMaterial(entry.key) ?: continue
+            if (!material.hasOrePrefix(targetPrefix)) continue
+            if (!batches.containsKey(material)) {
+                batches[material] = MaterialBatch(material)
+            }
         }
 
-        // output generation
-        mOutputItems =
-            outputData
-                .flatMap { (material, count) ->
-                    val stacks = mutableListOf<ItemStack>()
-                    var remaining = count
+        if (batches.isEmpty()) return pStop()
 
-                    while (remaining > 0) {
-                        val currentAmount = minOf(remaining, Int.MAX_VALUE.toLong()).toInt()
-                        material.getByOrePrefixUnsafe(targetPrefix, currentAmount)?.let {
-                            stacks.add(it)
-                        }
-                        remaining -= currentAmount
-                    }
+        val outputs = mutableListOf<ItemStack>()
+        val plans = mutableListOf<PlannedBatch>()
 
-                    stacks
-                }.toTypedArray()
+        for (batch in batches.values) {
+            if (batch.overflowed) continue
 
-        return pStart(outputData.size * 20)
+            val materialPlan =
+                planMaterialBalance(
+                    pMaterialCredits.getLong(batch.material.key),
+                    batch.incomingAmount,
+                    targetMaterialAmount,
+                ) ?: continue
+            if (materialPlan.outputCount <= 0) continue
+
+            // Build every output before touching inputs so failures remain atomic.
+            var remaining = materialPlan.outputCount
+            val outputStart = outputs.size
+            while (remaining > 0) {
+                val currentAmount = minOf(remaining, Int.MAX_VALUE.toLong()).toInt()
+                val output = batch.material.getByOrePrefixUnsafe(targetPrefix, currentAmount)
+                if (output == null) {
+                    while (outputs.size > outputStart) outputs.removeAt(outputs.lastIndex)
+                    break
+                }
+                outputs.add(output)
+                remaining -= currentAmount
+            }
+            if (remaining > 0) continue
+
+            plans.add(PlannedBatch(batch, materialPlan.remainder))
+        }
+
+        if (plans.isEmpty()) return pStop()
+
+        val outputArray = outputs.toTypedArray()
+        if (!canOutputAll(outputArray)) {
+            return pStop(result = CheckRecipeResultRegistry.ITEM_OUTPUT_FULL)
+        }
+
+        // Commit the already-validated plan. Whole stacks are consumed and exact leftovers become
+        // persistent material credit, so no indivisible-item rounding or material loss is possible.
+        for ((batch, remainder) in plans) {
+            batch.inputStacks.forEach { it.stackSize = 0 }
+            if (remainder > 0) {
+                pMaterialCredits.put(batch.material.key, remainder)
+            } else {
+                pMaterialCredits.removeLong(batch.material.key)
+            }
+        }
+
+        mOutputItems = outputArray
+        updateSlots()
+        return pStart(plans.size * 20)
     }
 
-    private fun pStop(clearOrePrefix: Boolean = false): CheckRecipeResult {
+    private fun pStop(
+        clearOrePrefix: Boolean = false,
+        result: CheckRecipeResult = CheckRecipeResultRegistry.NO_RECIPE,
+    ): CheckRecipeResult {
         if (clearOrePrefix) pOrePrefix = null
         mEfficiency = 0
         mEfficiencyIncrease = 0
         mMaxProgresstime = 0
         mProgresstime = 0
 
-        return CheckRecipeResultRegistry.NO_RECIPE
+        return result
     }
 
     private fun pStart(processTime: Int): CheckRecipeResult {
@@ -173,7 +212,7 @@ class NyxConverter : NyxMTECubeBase<NyxConverter> {
                 TextWidget
                     .dynamicString {
                         "${localize(locPrefixed("gui.t.0"))}: ${EnumChatFormatting.AQUA}${
-                            pOrePrefix?.mRegularLocalName ?: "EMPTY"
+                            pOrePrefix?.defaultLocalName ?: "EMPTY"
                         }"
                     }.setSynced(true)
                     .setTextAlignment(Alignment.CenterLeft)
@@ -190,12 +229,12 @@ class NyxConverter : NyxMTECubeBase<NyxConverter> {
         get() = GregTechAPI.sBlockCasings2 to 0
 
     override val sCasingHatch: Array<IHatchElement<in NyxConverter>>
-        get() = arrayOf(OutputBus, OutputHatch)
+        get() = arrayOf(InputBus, OutputBus)
 
-    override val sControllerIcon: Pair<Textures.BlockIcons, Textures.BlockIcons>
+    override val sControllerIcon: Pair<IIconContainer, IIconContainer>
         get() = OVERLAY_DTPF_OFF to OVERLAY_DTPF_OFF
 
-    override val sControllerIconActive: Pair<Textures.BlockIcons, Textures.BlockIcons>
+    override val sControllerIconActive: Pair<IIconContainer, IIconContainer>
         get() = OVERLAY_DTPF_ON to OVERLAY_DTPF_ON
 
     override fun createTooltip(): MultiblockTooltipBuilder? =
@@ -213,13 +252,44 @@ class NyxConverter : NyxMTECubeBase<NyxConverter> {
         pControllerToken = aNBT.getItemOrNull("pControllerToken")?.asToken() ?: MetaItemToken.EMPTY
         pOrePrefix =
             aNBT.getString("pOrePrefix").let {
-                if (it.isEmpty()) null else OrePrefixes.valueOf(it)
+                if (it.isEmpty()) null else OrePrefixes.getPrefix(it)
             }
+
+        pMaterialCredits.clear()
+        val credits = aNBT.getTagList(NBT_CREDITS, 10)
+        for (i in 0 until credits.tagCount()) {
+            val credit = credits.getCompoundTagAt(i)
+            val key = credit.getString(NBT_CREDIT_KEY)
+            val amount = credit.getLong(NBT_CREDIT_AMOUNT)
+            if (key.isNotEmpty() && amount > 0) {
+                pMaterialCredits.put(key, amount)
+            }
+        }
     }
 
     override fun saveNBTData(aNBT: NBTTagCompound) {
         super.saveNBTData(aNBT)
         aNBT.setItem("pControllerToken", pControllerToken.createStack())
         aNBT.setString("pOrePrefix", pOrePrefix?.name ?: "")
+
+        val credits = NBTTagList()
+        val iterator = pMaterialCredits.object2LongEntrySet().fastIterator()
+        while (iterator.hasNext()) {
+            val entry = iterator.next()
+            if (entry.longValue <= 0) continue
+            credits.appendTag(
+                NBTTagCompound().apply {
+                    setString(NBT_CREDIT_KEY, entry.key)
+                    setLong(NBT_CREDIT_AMOUNT, entry.longValue)
+                },
+            )
+        }
+        aNBT.setTag(NBT_CREDITS, credits)
+    }
+
+    private companion object {
+        const val NBT_CREDITS = "pMaterialCredits"
+        const val NBT_CREDIT_KEY = "material"
+        const val NBT_CREDIT_AMOUNT = "amount"
     }
 }
